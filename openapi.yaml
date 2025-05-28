@@ -1,0 +1,708 @@
+openapi: 3.0.3
+info:
+  title: Marmara Üniversitesi Kütüphane Sistemi API
+  description: |
+    Marmara Üniversitesi çevrim içi kütüphane sistemi için REST API.
+    Bu API kitap, öğrenci ve ödünç alma işlemlerini yönetir.
+  version: 1.0.0
+  contact:
+    name: Kütüphane Sistemi Destek
+    email: support@marun.edu.tr
+
+servers:
+  - url: https://api.library.marun.edu.tr/v1
+    description: Production server
+  - url: https://staging-api.library.marun.edu.tr/v1
+    description: Staging server
+
+tags:
+  - name: books
+    description: Kitap yönetimi işlemleri
+  - name: students
+    description: Öğrenci yönetimi işlemleri
+  - name: loans
+    description: Ödünç alma işlemleri
+
+paths:
+  /books:
+    get:
+      tags:
+        - books
+      summary: Tüm kitapları listele
+      description: Sayfalama desteği ile tüm kitapları getirir
+      parameters:
+        - name: page
+          in: query
+          description: Sayfa numarası
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: size
+          in: query
+          description: Sayfa başına kayıt sayısı
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: X-Request-ID
+          in: header
+          description: İstek takip ID'si
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Başarılı yanıt
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Book'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+              example:
+                data:
+                  - id: "550e8400-e29b-41d4-a716-446655440000"
+                    title: "Clean Code"
+                    author: "Robert C. Martin"
+                    isbn: "978-0132350884"
+                    publisher: "Prentice Hall"
+                    pageCount: 464
+                    stock: 5
+                pagination:
+                  page: 1
+                  size: 10
+                  total: 150
+                  totalPages: 15
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - books
+      summary: Yeni kitap ekle
+      description: Kütüphaneye yeni bir kitap ekler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookCreate'
+            example:
+              title: "Design Patterns"
+              author: "Gang of Four"
+              isbn: "978-0201633610"
+              publisher: "Addison-Wesley"
+              pageCount: 395
+              stock: 3
+      responses:
+        '201':
+          description: Kitap başarıyla oluşturuldu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Book'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /books/{id}:
+    get:
+      tags:
+        - books
+      summary: Kitap detayını getir
+      description: Belirtilen ID'ye sahip kitabın detaylarını getirir
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Kitap UUID'si
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Başarılı yanıt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Book'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - books
+      summary: Kitap bilgilerini güncelle
+      description: Belirtilen ID'ye sahip kitabın tüm bilgilerini günceller
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Kitap UUID'si
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookCreate'
+      responses:
+        '200':
+          description: Kitap başarıyla güncellendi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Book'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - books
+      summary: Kitabı sil
+      description: Belirtilen ID'ye sahip kitabı sistemden siler
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Kitap UUID'si
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Kitap başarıyla silindi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Kitap başarıyla silindi"
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /students:
+    get:
+      tags:
+        - students
+      summary: Tüm öğrencileri listele
+      description: Sistemdeki tüm öğrencileri getirir
+      responses:
+        '200':
+          description: Başarılı yanıt
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Student'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - students
+      summary: Yeni öğrenci ekle
+      description: Sisteme yeni bir öğrenci kaydeder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentCreate'
+      responses:
+        '201':
+          description: Öğrenci başarıyla oluşturuldu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Student'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /students/{id}:
+    get:
+      tags:
+        - students
+      summary: Öğrenci detayını getir
+      description: Belirtilen ID'ye sahip öğrencinin detaylarını getirir
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Öğrenci UUID'si
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Başarılı yanıt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Student'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - students
+      summary: Öğrenci bilgilerini güncelle
+      description: Belirtilen ID'ye sahip öğrencinin tüm bilgilerini günceller
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Öğrenci UUID'si
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentCreate'
+      responses:
+        '200':
+          description: Öğrenci başarıyla güncellendi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Student'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - students
+      summary: Öğrenciyi sil
+      description: Belirtilen ID'ye sahip öğrenciyi sistemden siler
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Öğrenci UUID'si
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Öğrenci başarıyla silindi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Öğrenci başarıyla silindi"
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /loans:
+    get:
+      tags:
+        - loans
+      summary: Tüm ödünç alma kayıtlarını listele
+      description: Sistemdeki tüm ödünç alma kayıtlarını getirir
+      responses:
+        '200':
+          description: Başarılı yanıt
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Loan'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - loans
+      summary: Kitap ödünç alma
+      description: Öğrencinin kitap ödünç almasını sağlar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoanCreate'
+      responses:
+        '201':
+          description: Ödünç alma işlemi başarılı
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Loan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /loans/{id}:
+    get:
+      tags:
+        - loans
+      summary: Ödünç alma detayını getir
+      description: Belirtilen ID'ye sahip ödünç alma kaydının detaylarını getirir
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Ödünç alma UUID'si
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Başarılı yanıt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Loan'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /loans/{id}/return:
+    patch:
+      tags:
+        - loans
+      summary: Kitap iade etme
+      description: Ödünç alınan kitabın iade edilmesini sağlar
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Ödünç alma UUID'si
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Kitap başarıyla iade edildi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Loan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    Book:
+      type: object
+      required:
+        - id
+        - title
+        - author
+        - isbn
+        - publisher
+        - pageCount
+        - stock
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Kitap benzersiz tanımlayıcısı
+        title:
+          type: string
+          description: Kitap başlığı
+          minLength: 1
+          maxLength: 255
+        author:
+          type: string
+          description: Yazar adı
+          minLength: 1
+          maxLength: 255
+        isbn:
+          type: string
+          pattern: '^978-\d{10}$'
+          description: ISBN-13 formatında kitap numarası
+        publisher:
+          type: string
+          description: Yayınevi
+          minLength: 1
+          maxLength: 255
+        pageCount:
+          type: integer
+          minimum: 1
+          description: Sayfa sayısı
+        stock:
+          type: integer
+          minimum: 0
+          description: Stok miktarı
+
+    BookCreate:
+      type: object
+      required:
+        - title
+        - author
+        - isbn
+        - publisher
+        - pageCount
+        - stock
+      properties:
+        title:
+          type: string
+          description: Kitap başlığı
+          minLength: 1
+          maxLength: 255
+        author:
+          type: string
+          description: Yazar adı
+          minLength: 1
+          maxLength: 255
+        isbn:
+          type: string
+          pattern: '^978-\d{10}$'
+          description: ISBN-13 formatında kitap numarası
+        publisher:
+          type: string
+          description: Yayınevi
+          minLength: 1
+          maxLength: 255
+        pageCount:
+          type: integer
+          minimum: 1
+          description: Sayfa sayısı
+        stock:
+          type: integer
+          minimum: 0
+          description: Stok miktarı
+
+    Student:
+      type: object
+      required:
+        - id
+        - name
+        - studentNumber
+        - email
+        - isActive
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Öğrenci benzersiz tanımlayıcısı
+        name:
+          type: string
+          description: Öğrenci adı soyadı
+          minLength: 1
+          maxLength: 255
+        studentNumber:
+          type: string
+          description: Öğrenci numarası
+          pattern: '^[0-9]{8,12}$'
+        email:
+          type: string
+          format: email
+          description: Öğrenci e-posta adresi
+        isActive:
+          type: boolean
+          description: Öğrenci aktif durumu
+
+    StudentCreate:
+      type: object
+      required:
+        - name
+        - studentNumber
+        - email
+        - isActive
+      properties:
+        name:
+          type: string
+          description: Öğrenci adı soyadı
+          minLength: 1
+          maxLength: 255
+        studentNumber:
+          type: string
+          description: Öğrenci numarası
+          pattern: '^[0-9]{8,12}$'
+        email:
+          type: string
+          format: email
+          description: Öğrenci e-posta adresi
+        isActive:
+          type: boolean
+          description: Öğrenci aktif durumu
+          default: true
+
+    Loan:
+      type: object
+      required:
+        - id
+        - studentId
+        - bookId
+        - loanDate
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Ödünç alma benzersiz tanımlayıcısı
+        studentId:
+          type: string
+          format: uuid
+          description: Öğrenci ID'si
+        bookId:
+          type: string
+          format: uuid
+          description: Kitap ID'si
+        loanDate:
+          type: string
+          format: date
+          description: Ödünç alma tarihi
+        returnDate:
+          type: string
+          format: date
+          nullable: true
+          description: İade tarihi (henüz iade edilmemişse null)
+        status:
+          type: string
+          enum: ["ongoing", "returned", "late"]
+          description: Ödünç alma durumu
+
+    LoanCreate:
+      type: object
+      required:
+        - studentId
+        - bookId
+        - loanDate
+      properties:
+        studentId:
+          type: string
+          format: uuid
+          description: Öğrenci ID'si
+        bookId:
+          type: string
+          format: uuid
+          description: Kitap ID'si
+        loanDate:
+          type: string
+          format: date
+          description: Ödünç alma tarihi
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Mevcut sayfa numarası
+        size:
+          type: integer
+          description: Sayfa başına kayıt sayısı
+        total:
+          type: integer
+          description: Toplam kayıt sayısı
+        totalPages:
+          type: integer
+          description: Toplam sayfa sayısı
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          description: Hata kodu
+        message:
+          type: string
+          description: Hata mesajı
+        details:
+          type: string
+          description: Detaylı hata açıklaması
+
+  responses:
+    BadRequest:
+      description: Geçersiz istek
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: 400
+            message: "Geçersiz istek parametreleri"
+            details: "ISBN formatı hatalı"
+
+    NotFound:
+      description: Kaynak bulunamadı
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: 404
+            message: "Kaynak bulunamadı"
+            details: "Belirtilen ID'ye sahip kayıt bulunamadı"
+
+    InternalServerError:
+      description: Sunucu hatası
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: 500
+            message: "İç sunucu hatası"
+            details: "Beklenmeyen bir hata oluştu"
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API anahtarı ile kimlik doğrulama
+    
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token ile kimlik doğrulama
+
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: [] 
